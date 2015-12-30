@@ -1,0 +1,72 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+
+<title>Jquery Widget on Google Map</title>
+
+<style type="text/css">
+
+html, body, #map-canvas {
+  width: 100%;
+  height: 100%;
+}
+div.demo{text-align: center; width: 500px;border:1px blue solid}
+div.demo > p{font-size: 20px}
+
+</style>
+
+
+<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?v=3.exp"></script>
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js" ></script>
+<script src="dist/jquery.knob.min.js"></script>
+<script type="text/javascript" src="test.js"></script>
+
+
+<script type="text/javascript">
+
+function initialize() {
+	var myLatlng = new google.maps.LatLng(5.4176872,100.3367653);
+	var mapOptions = {
+		zoom: 16,
+		center: myLatlng
+	}
+
+	var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+
+	/*
+	// Example standard marker
+	var marker = new google.maps.Marker({
+		position: myLatlng,
+		map: map,
+		title: 'Hello World!'
+	});
+	*/
+
+	overlay = new CustomMarker(
+		myLatlng,
+		map,
+		{
+			marker_id: '123'
+		}
+	);
+}
+
+
+
+$( document ).ready(function() {
+  console.log("doc ready");
+    initialize();
+});
+
+
+</script>
+
+</head>
+<body>
+
+	<div id="map-canvas">
+	</div>
+
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Search for up to 200 places with Radar Search</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAH1v_qB33GWwkmNyuexeCWgHB81cxm3-s&signed_in=true&libraries=places,geometry,drawing,visualization"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js" ></script>
+    <script src="js/radius_meters_to_pixels.js"></script>
+    <script src='js/ss_infobox.js'></script>
+    <script src="dist/jquery.knob.min.js"></script>
+    <script src="js/map_knob_overlay.js"></script>
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <script>
+var map;
+var infoWindow;
+var placeService;
+
+google.maps.event.addDomListener(window, 'load', initMap);
+var searchValue = "char koay teow";
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById('map_canvas'), {
+    center: new google.maps.LatLng(5.4168960,100.3370710),
+    zoom: 15
+  });
+
+  infoWindow = new google.maps.InfoWindow();
+  placeService = new google.maps.places.PlacesService(map);
+
+ var myLatLng = new google.maps.LatLng(5.4209120, 100.3375431);
+
+ google.maps.event.addListener(map, 'zoom_changed', function() {
+     zoomLevel = map.getZoom();
+     console.log("map Zoomed ....");
+});
+
+  var drawingManager = initDrawingManager(map);
+  startSearch(drawingManager, searchValue)
+}
+
+function initDrawingManager(map) {
+  var drawingManager = new google.maps.drawing.DrawingManager({
+    drawingMode: google.maps.drawing.OverlayType.MARKER,
+    drawingControl: true,
+    drawingControlOptions: {
+      position: google.maps.ControlPosition.TOP_CENTER,
+      drawingModes: [
+        google.maps.drawing.OverlayType.MARKER,
+        google.maps.drawing.OverlayType.CIRCLE,
+      ]
+    },
+    markerOptions: {icon: 'images/green-star.png'},
+    circleOptions: {
+      strokeColor: "#00e5e6",
+      strokeOpacity: 0.3,
+      strokeWeight: 3,
+      fillColor: '#00e5e6',
+      fillOpacity: 0.05,
+      clickable: true,
+      editable: true,
+      zIndex: 1
+    }
+  });
+  drawingManager.setMap(map);
+
+//  drawingManager.setDrawingMode(null);
+  drawingManager.setDrawingMode(google.maps.drawing.OverlayType.CIRCLE);
+
+  return drawingManager;
+}
+
+function  startSearch(drawingManager, searchValue) {
+
+  // drawingManager gives us the Circle
+  drawingManager.addListener('circlecomplete', function(circle) {
+    console.log("circle complete");
+    
+    search(drawingManager, circle, searchValue);
+
+    circle.addListener('radius_changed', function() {
+      console.log("circle radius changed");
+      clearCircleandSearchAgain(drawingManager, circle, searchValue);
+    });
+
+    circle.addListener('center_changed', function() {
+      console.log("circle was dragged");
+      clearCircleandSearchAgain(drawingManager, circle, searchValue);
+    });
+  });
+}
+
+function clearCircleandSearchAgain(drawingManager, circle, searchValue) {
+  clearMarkers(circle);
+  clearBoundaryLabel(circle); // if any
+  clearKnob(circle);
+  search(drawingManager, circle, searchValue);
+}
+
+function search(drawingManager, circle, searchValue) {
+
+  circle.currMarkers=[];  // for markers within Circle, for deleting later
+  addBoundaryLabel(circle,map);
+  addKnob(circle);
+
+  var request = {
+    bounds: circle.getBounds(),
+    keyword: searchValue,
+    name : searchValue
+  };
+
+  placeService.radarSearch(request, function(results,status) {
+      console.log("search for circle = " + circle.getCenter());
+      if (status !== google.maps.places.PlacesServiceStatus.OK) {
+        console.error(status);
+        return;
+      }
+      for (var i = 0, result; result = results[i]; i++) {
+        addMarker(result, circle );
+      }
+  });
+
+  drawingManager.setDrawingMode(null); // set back to 'Hand'
+}
+
+function addKnob(circle) {
+    clearKnob(circle);
+    circle.knob = new KnobOverlay(
+          circle.getCenter(),
+          map,
+          {
+            marker_id: '123',
+            radius : circle.radius
+          }
+        );
+}
+
+function clearKnob(circle) {
+  if ( circle.knob ) {
+    circle.knob.remove();
+  }
+}
+
+function addMarker(place, circle) {
+
+  var marker = new google.maps.Marker({
+    map: map,
+    position: place.geometry.location,
+    icon: {
+      url: 'http://maps.gstatic.com/mapfiles/circle.png',
+      anchor: new google.maps.Point(10, 10),
+      scaledSize: new google.maps.Size(10, 17)
+    }
+  });
+
+  circle.currMarkers.push(marker);  // keep the marker
+
+  google.maps.event.addListener(marker, 'click', function() {
+
+    placeService.getDetails(place, function(result, status) {
+      if (status !== google.maps.places.PlacesServiceStatus.OK) {
+        console.error(status);
+        return;
+      }
+      var content = '<div><strong>' + result.name + '</strong><br>' +
+          'Place ID: ' + result.place_id + '<br>' +
+          result.formatted_address + '<br>' +
+          '[' + result.types + '] <br>'
+          '</div>';
+
+      if (result.photos!=null ) {
+        console.log("photo : " + result.photos[0].getUrl({'maxWidth': 200, 'maxHeight': 200}));
+        var photoUrl =  result.photos[0].getUrl({'maxWidth': 200, 'maxHeight': 200});
+        content += "<img src=" + photoUrl + ">"
+      }
+      infoWindow.setContent(content);
+      infoWindow.open(map, marker);
+
+    });
+  });
+}
+
+function clearMarkers(circle) {
+  if (circle.currMarkers==null) {
+    circle.currMarkers = [];
+    return;
+  }
+  for (var i = 0; i < circle.currMarkers.length; i++) {
+    circle.currMarkers[i].setMap(null);
+  }
+  circle.currMarkers = [];
+}
+
+function addBoundaryLabel(circle, map) {
+  var infobox = new InfoBox();
+  infobox.labelPositionDegrees=-90;
+
+  var labelPosition = google.maps.geometry.spherical.computeOffset( circle.center, circle.radius,-90);
+  var boxText = document.createElement("div");
+      boxText.innerHTML = Math.round(circle.radius) + " m";
+
+  var myOptions = {
+    //content: "<div draggable='true' ondrag='a()' ondragend='b()' style='color:#ff8000'>" + Math.round(circle.radius) + " m</div>"
+    content : boxText
+    ,position: labelPosition
+    ,maxWidth: 0
+    ,pixelOffset: new google.maps.Size(-10,0)
+    ,zIndex: null
+    ,boxStyle: {
+		   border: "1px solid black"
+		  ,textAlign: "center"
+		  ,fontSize: "8pt"
+		  ,width: "60px"
+		 }
+    ,closeBoxURL: "http://www.google.com/intl/en_us/mapfiles/close.gif"
+    ,pane: "floatPane"
+    ,enableEventPropagation: false
+  };
+
+   infobox.setOptions(myOptions);
+  //var infobox = new InfoBox(myOptions);
+  infobox.open(map);
+
+  google.maps.event.addListener(infobox, 'closeclick', function() {
+    console.log("infobox close is clicked ..");
+    clearCircleAndMarkers(circle);
+    clearKnob(circle);
+  });
+
+  google.maps.event.addListener(infobox, 'dragend', function(latLng) {
+    console.log("dragend ..Bounce back to latlng=" + latLng);
+    infobox.setPosition(labelPosition);
+  });
+
+  circle.infobox = infobox;  // keep handle for closing when circle is resized
+}
+
+function clearCircleAndMarkers(circle) {
+  clearMarkers(circle);
+  circle.setMap(null);  //delete circle
+}
+
+function clearBoundaryLabel(circle) {
+  if (circle.infobox) {
+  	circle.infobox.close();
+  }
+}
+
+    </script>
+  </head>
+  <body>
+    <div id="map_canvas"></div>
+  </body>
+</html>
